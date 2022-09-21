@@ -24,7 +24,9 @@ const resolvers = {
       let books = await Book.find({}).sort({createdAt: 1}).skip(args.page * args.limit).limit(args.limit + 1);
      
       let hasMorePages = (books.length <= args.limit) ? false : true;
-      books.pop();
+      if (books.length > args.limit) {
+        books.pop();
+      }
       return {
         hasMorePages: hasMorePages,
         books: books
@@ -47,14 +49,16 @@ const resolvers = {
         // await Author.find({}).sort({created_at: -1}).where({createdAt: { $lt: args.cursor} }).limit(args.limit +1)
         // the set limit is to show number of data to return. The set limit has to be increased
         // by one so you can can know when there are more pages to fetch... Will understand more below
-        author = await Author.find({}).sort({created_at: 1}).where({createdAt: { $gt: args.cursor} }).limit(args.limit +1);
+        author = await Author.find({}).sort({createdAt: 1}).where({createdAt: { $gt: args.cursor} }).limit(args.limit + 1);
         // hasMorePages determines if there are more pages to fetch, by checking if the result is less than or equal to
         // to the limit i.e, the set limit minus one, remember the limit is increased by one, this is because if
         // you do not get the result equal to the limit plus 1, then there are no more pages or data left
         const hasMorePages = (author.length <= args.limit) ? false : true;
         // the result is popped to reduce the result back to the intended limit so the cursor can be determined, the
         //  cursor is the "createdAt" field in the last item in the array.
-        author.pop();
+        if (author.length > args.limit) {
+          author.pop();
+        }
         //Getting the last Item in the array, if the result wasn't popped the last Item in the array would disrupt the 
         // next request and would make it hard for the hasmorepages variable to determine if it is true or false
         const cursor = author[author.length - 1].createdAt;
@@ -206,7 +210,9 @@ const resolvers = {
       return { value: jwt.sign(userForToken, process.env.JWT_SECRET) }
     },
     addBook: async (root, args, context) => {
+      console.log('Atleast I reach here')
       if (!context.currentUser) {
+        console.log("Not here")
         throw new AuthenticationError('You are not authorized to perform task');
       }
       if (await Book.findOne({title: args.title, author: args.author})) {
