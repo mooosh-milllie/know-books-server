@@ -28,8 +28,7 @@ const typeDefs = gql`
     author: [Author!]!
   }
   type BooksSearch {
-    cursor: String!
-    book: [Book!]!
+    book: [Book!]
   }
   type Books {
     hasMorePages: Boolean!
@@ -42,7 +41,7 @@ const typeDefs = gql`
     books(page: Int!, limit: Int!): Books
     author(id: String!): Author
     authors(cursor: String, limit: Int!): Authors
-    booksSearch(author: String, genre: String, cursor: String): BooksSearch
+    booksSearch(author: String, genre: String): BooksSearch
     me: User
   }
   type Mutation {

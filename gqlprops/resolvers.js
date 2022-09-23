@@ -20,11 +20,14 @@ const resolvers = {
       return book;
     },
     books: async(root, args) => {
-      console.log(args.page)
       let books = await Book.find({}).sort({createdAt: 1}).skip(args.page * args.limit).limit(args.limit + 1);
      
       let hasMorePages = (books.length <= args.limit) ? false : true;
-      books.pop();
+
+      if (hasMorePages) {
+        books.pop();
+      }
+
       return {
         hasMorePages: hasMorePages,
         books: books
@@ -33,7 +36,6 @@ const resolvers = {
     },
     author: async(root, args) => {
       const author = await Author.findOne({_id: args.id});
-      console.log(author)
       return author;
     },
     authors: async (root, args) => {
@@ -52,9 +54,11 @@ const resolvers = {
         // to the limit i.e, the set limit minus one, remember the limit is increased by one, this is because if
         // you do not get the result equal to the limit plus 1, then there are no more pages or data left
         const hasMorePages = (author.length <= args.limit) ? false : true;
-        // the result is popped to reduce the result back to the intended limit so the cursor can be determined, the
+        // the result is popped to reduce the result back to the intended, if hasmore pages is true limit so the cursor can be determined, the
         //  cursor is the "createdAt" field in the last item in the array.
-        author.pop();
+        if (hasMorePages) {
+          author.pop();
+        }
         //Getting the last Item in the array, if the result wasn't popped the last Item in the array would disrupt the 
         // next request and would make it hard for the hasmorepages variable to determine if it is true or false
         const cursor = author[author.length - 1].createdAt;
@@ -72,7 +76,9 @@ const resolvers = {
       // limit in the backend permanently but increment by one
       author = await Author.find({}).sort({createdAt: 1}).limit((args.limit + 1));
       const hasMorePages = (author.length <= args.limit) ? false : true;
-      author.pop();
+      if (hasMorePages) {
+        author.pop();
+      }
       const cursor = author[author.length - 1].createdAt;
       return {
         cursor: cursor,
@@ -81,91 +87,54 @@ const resolvers = {
       }
     },
     booksSearch: async(root, args) => {
-      let limit = 1;
-      console.log("ARGS::::", args)
       if (!args.author && args.genre) {
-        let book;
-        if (args.cursor) {
-          book = await Book.find({genres: {$in: [args.genre]}}).where({createdAt: {$gt: args.cursor}}).sort({createdAt: 1}).limit(limit + 1);
-          let cursor = book[book.length -1].createdAt;
-          return (book.length > 0) ? {cursor, book} : null;
-        }  
-        book = await Book.find({genres: {$in: [args.genre]}}).sort({createdAt: 1}).limit(limit + 1)
-
-        let cursor = book[book.length -1].createdAt;
-        console.log(book);
-        return book.length > 0 ? {cursor, book} : null;
+        let book = await Book.find({genres: {$in: [args.genre]}}).sort({createdAt: 1});
+        if (book.length < 1) {
+          return null
+        }
+        return {book};
       }
       
       if (args.author && !args.genre) {
-        let book;
-        if (args.cursor) {
-          console.log(args.cursor);
-          book = await Book.find({author: args.author}).sort({createdAt: 1}).where({createdAt: {$gt: args.cursor}}).limit(limit + 1);
-          console.log(book);
-          if (book.length > limit) {
-            book.pop();
-          }
-          if (book.length > 0) {
-            let cursor = book[book.length -1].createdAt;
-            return {cursor, book};
-          }
-          return null;
-        }
+        let book = await Book.find({author: args.author}).sort({createdAt: 1});
 
-        book = await Book.find({author: args.author}).sort({createdAt: 1}).limit(limit + 1);
-        console.log(book)
-        if (book.length > limit) {
-          book.pop();
+        if (book.length < 1) {
+          return null
         }
-        if (book.length > 0) {
-          let cursor = book[book.length -1].createdAt;
-          return {cursor, book};
-        }
-        return null;
+        return {book};
       }
       
       if (args.author && args.genre) {
-        let book;
-        if (args.cursor) {
-          book = await Book.find({
-            genres: {$in: [args.genre]},
-            author: args.author
-          }).where({createdAt: {$gt: args.cursor}}).sort({createdAt: 1}).limit(limit +1);
-          let cursor = book[book.length -1].createdAt;
-          return (book.length > 0) ? {cursor, book} : null;
-        }
-        book = await Book.find({
+        let book = await Book.find({
           genres: {$in: [args.genre]},
           author: args.author
-        }).sort({createdAt: 1}).limit(limit + 1);
-        console.log(book)
-        let cursor = book[book.length -1].createdAt;
-        return (book.length > 0) ? {cursor, book} : null;
-      } 
-
-      
+        }).sort({createdAt: 1});
+        if (book.length < 1) {
+          return null
+        }
+        return {book};
+      }
     },
-    me: (root, args, context) => {
+    me: (_root, _args, context) => {
       return context.currentUser;
     }
   },
   Book:  {
-    author: async(root, args, context) => {
+    author: async(root) => {
       const author = await Author.find({_id: root.authorId})
       return author;
     }
     
   },
   Author: {
-    books: async(root, args, context) => {
+    books: async(root) => {
       const book = await Book.find({_id: {$in: [...root.books]}});
       return book;
     }
   },
 
   Mutation: {
-    createUser: async (root, args) => {
+    createUser: async (_root, args) => {
       const checkExistingUser = await User.findOne({username: args.username})
       if (checkExistingUser) {
         throw new UserInputError(`username ${args.username} already exists`, {
@@ -187,7 +156,7 @@ const resolvers = {
           })
         })
     },
-    login: async (root, args) => {
+    login: async (_root, args) => {
       const user = await User.findOne({ username: args.username })
       if ( !user ) {
         throw new UserInputError("Invalid username or password");
@@ -205,7 +174,7 @@ const resolvers = {
   
       return { value: jwt.sign(userForToken, process.env.JWT_SECRET) }
     },
-    addBook: async (root, args, context) => {
+    addBook: async (_root, args, context) => {
       if (!context.currentUser) {
         throw new AuthenticationError('You are not authorized to perform task');
       }
@@ -218,6 +187,11 @@ const resolvers = {
           invalidArgs: args.name,
         })
       }
+      if (args.genres.length < 1) {
+        throw new UserInputError('One or more genre is required!', {
+          incompleteRequest: 'args.genres',
+        })
+      }
       let authorId;
       let savedBook;
       if (authorId = await Author.findOne({name: args.author})) {
@@ -225,9 +199,7 @@ const resolvers = {
         let newBook = new Book({...args, authorId: authorId.id});
         savedBook = await newBook.save();
         let savedAuthor = await Author.findByIdAndUpdate(authorId._id, {$push: {"books": savedBook._id}}, { "new": true, "upsert": true })
-        console.log("Saved New old", savedBook)
-        console.log("Author old", savedAuthor)
-        pubsub.publish('BOOK_ADDED', { bookAdded: savedBook });
+        await pubsub.publish('BOOK_ADDED', { bookAdded: savedBook });
         return savedBook;
       } 
       let newAuthor = new Author({name: args.author});
@@ -236,12 +208,10 @@ const resolvers = {
       let newBook = new Book({...args, authorId: authorId.id});
       savedBook = await newBook.save();
       let savedAuthor = await Author.findByIdAndUpdate(authorId._id, {$push: {"books": savedBook._id}}, { "new": true, "upsert": true })
-      console.log("Saved New", savedBook)
-      console.log("Author New", savedAuthor)
-      pubsub.publish('BOOK_ADDED', { bookAdded: savedBook });
+      await pubsub.publish('BOOK_ADDED', { bookAdded: savedBook });
       return savedBook;
     },
-    editAuthor: async(root, args, context) => {
+    editAuthor: async(_root, args, context) => {
       if (!context.currentUser) {
         throw new AuthenticationError('You are not authorized to perform task');
       }

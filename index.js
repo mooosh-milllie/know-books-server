@@ -1,13 +1,11 @@
 const { ApolloServer } = require('apollo-server-express')
-const { ApolloServerPluginDrainHttpServer } = require('apollo-server-core')
+const { ApolloServerPluginDrainHttpServer, ApolloServerPluginLandingPageLocalDefault } = require('apollo-server-core')
 const { makeExecutableSchema } = require('@graphql-tools/schema')
 const express = require('express');
 const {createServer} = require('http');
 const cors = require('cors');
-const { execute, subscribe } = require('graphql');
 const { WebSocketServer } = require('ws');
 const { useServer } = require('graphql-ws/lib/use/ws');
-const { SubscriptionServer } = require('subscriptions-transport-ws');
 
 const mongoose = require('mongoose');
 const jwt = require('jsonwebtoken');
@@ -15,7 +13,6 @@ require('dotenv').config();
 const typeDefs = require('./gqlprops/type');
 const User = require('./models/user');
 const resolvers = require('./gqlprops/resolvers');
-
 
 mongoose.connect(process.env.MONGODB_URI)
   .then( async() => {
@@ -41,12 +38,15 @@ const start = async () => {
 
   const wsServer = new WebSocketServer({
     server: httpServer,
-    path: '/graphql',
+    path: '/subscriptions',
   })
+  
   const serverCleanup = useServer({ schema }, wsServer);
 
   const server = new ApolloServer({
     schema,
+    csrfPrevention: true,
+    cache: "bounded",
     context: async ({ req }) => {
       const auth = req ? req.headers.authorization : null
       if (auth && auth.toLowerCase().startsWith('bearer ')) {
@@ -67,6 +67,7 @@ const start = async () => {
           }
         },
       },
+      ApolloServerPluginLandingPageLocalDefault({ embed: true }),
     ],
   })
   
