@@ -195,21 +195,30 @@ const resolvers = {
       let authorId;
       let savedBook;
       if (authorId = await Author.findOne({name: args.author})) {
+        try {
+          let newBook = new Book({...args, authorId: authorId.id});
+          savedBook = await newBook.save();
+          await Author.findByIdAndUpdate(authorId._id, {$push: {"books": savedBook._id}}, { "new": true, "upsert": true })
+          await pubsub.publish('BOOK_ADDED', { bookAdded: savedBook });
+          return savedBook;
+        } catch (error) {
+          throw new Error('Unable Add book');
+        }
+      } 
 
+      try {
+        let newAuthor = new Author({name: args.author});
+        authorId = await newAuthor.save();
+        
         let newBook = new Book({...args, authorId: authorId.id});
         savedBook = await newBook.save();
-        let savedAuthor = await Author.findByIdAndUpdate(authorId._id, {$push: {"books": savedBook._id}}, { "new": true, "upsert": true })
+        await Author.findByIdAndUpdate(authorId._id, {$push: {"books": savedBook._id}}, { "new": true, "upsert": true })
         await pubsub.publish('BOOK_ADDED', { bookAdded: savedBook });
-        return savedBook;
-      } 
-      let newAuthor = new Author({name: args.author});
-      authorId = await newAuthor.save();
+        return savedBook;  
+      } catch (error) {
+        throw new Error('Unable Add book');
+      }
       
-      let newBook = new Book({...args, authorId: authorId.id});
-      savedBook = await newBook.save();
-      let savedAuthor = await Author.findByIdAndUpdate(authorId._id, {$push: {"books": savedBook._id}}, { "new": true, "upsert": true })
-      await pubsub.publish('BOOK_ADDED', { bookAdded: savedBook });
-      return savedBook;
     },
     editAuthor: async(_root, args, context) => {
       if (!context.currentUser) {
